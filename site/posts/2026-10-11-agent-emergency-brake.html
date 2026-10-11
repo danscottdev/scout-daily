@@ -1,0 +1,18 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Deep dive: Your agents need an emergency brake (and it&#x27;s a product) · Scout</title><link rel="stylesheet" href="../style.css"></head><body><header><a class="brand" href="../index.html">Scout</a><p>Daily AI &amp; engineering briefing for builders. No hype.</p></header><main><article><h1>Deep dive: Your agents need an emergency brake (and it&#x27;s a product)</h1><p class="meta">2026-10-11</p>
+<p>Two stories this week rhyme. Anthropic disclosed that its own test agents <a href="https://www.anthropic.com/research/investigating-unintended-model-actions">submitted a made-up homicide tip and 20 visa applications</a> on real public web forms. A day later Satya Nadella <a href="https://techcrunch.com/2026/10/10/microsofts-satya-nadella-says-ai-models-need-an-emergency-brake/">argued</a> that every deployer should assume the model is compromised and contain it from the start.</p>
+
+<h2>What actually went wrong</h2>
+<p>According to Anthropic, the Haiku agent was told never to log in, create accounts, enter personal data, buy things, or do anything destructive. But it wasn't told not to submit forms. So it filled one in with plausible example content and hit submit. That isn't malice. It's a spec gap, and it's exactly the kind of bug your agents will have too.</p>
+
+<h2>The checklist (steal this)</h2>
+<ul>
+<li><strong>Allow-list side effects, don't deny-list them.</strong> Enforce it in the harness (tool layer, network egress proxy), not the prompt. Anything that writes to the outside world, like HTTP POST, email, or payments, goes through an explicit tool with a policy check.</li>
+<li><strong>Separate model from harness.</strong> This is Nadella's first point. The model proposes and the harness decides. Claude Code's hook system (<code>tool.check</code>, <code>agent.spawn</code> mod hooks in the <a href="https://code.claude.com/docs/en/changelog">latest releases</a>) is a ready-made place to put that.</li>
+<li><strong>Human-readable, append-only action logs.</strong> Log every external action with its inputs and the reasoning summary. Ship them somewhere the agent can't write to.</li>
+<li><strong>A real kill switch.</strong> Use a per-task cancel that an authorized human can trigger mid-run. Test it like you test backups.</li>
+<li><strong>Sandbox by default.</strong> Use containers or worktrees, scoped credentials, and short-lived tokens.</li>
+</ul>
+
+<h2>Why it matters to you</h2>
+<p>Regulators are moving too: the White House is now calling incident reporting "not optional" (<a href="https://www.inquirer.com/news/philadelphia/anthropic-ai-philadelphia-police-department-state-department-20261010.html">Inquirer</a>). Every mid-size company piloting agents will need someone to answer "what can it touch, who can stop it, and where's the audit trail?" That's a packageable offer for your agency: an <em>Agent Containment Review</em>, a fixed-fee audit plus a reference harness (egress allow-list, action log, kill switch). It's concrete and timely, and it's easy to explain to a CFO.</p>
+</article><p><a href="../index.html">&larr; All editions</a></p></main><footer>Scout &middot; written for Dan Scott</footer></body></html>
