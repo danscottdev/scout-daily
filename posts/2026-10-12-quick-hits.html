@@ -1,0 +1,45 @@
+<!--
+title: Quick Hits — Mon Oct 12, 2026
+date: 2026-10-12
+order: 1
+summary: Zod's repo got backdoored but npm held, Claude Code hooks learn to fail closed, Copilot's sandbox goes GA, and Mistral's trillion-parameter open model gets a price.
+-->
+<p>A quiet weekend for launches, a loud one for supply-chain and guardrail lessons. Nine things worth your Monday, plus a couple of big releases from last week that are worth catching up on.</p>
+
+<h3>1. Zod's GitHub repo was backdoored, and its release pipeline is why you're fine</h3>
+<p>A commit titled "Fix bugs and improve performance" in <code>colinhacks/zod</code> added a <code>preinstall</code> loader that asks an Ethereum smart contract where to fetch its next-stage payload. It hit the HN front page overnight. The maintainer says a git push credential was compromised and the attacker pushed commits and tags straight to <code>main</code>. The bad code was reverted, and the published <code>zod@4.6.6</code> on npm doesn't contain it, because Zod publishes through trusted publishing and a dedicated GitHub environment with approval. <a href="https://github.com/colinhacks/zod/issues/6658">GitHub issue #6658</a> · <a href="https://news.ycombinator.com/item?id=50052814">HN thread</a></p>
+<p class="why">Why it matters to you: a repo compromise only becomes a registry compromise if publishing trusts the repo. Check your own packages and your clients': use OIDC trusted publishing, a protected deploy environment, and no long-lived <code>NPM_TOKEN</code> in CI. Branch protection on <code>main</code> wouldn't hurt either.</p>
+
+<h3>2. Claude Code hooks can now fail closed, and an instruction-style hook bug got fixed</h3>
+<p>v2.1.294 fixed <code>prompt</code> and <code>agent</code> hooks written as instructions (like "Block commands that...") <em>allowing</em> the things they were meant to block. v2.1.295 adds <code>onFailure: "block"</code>, so a command or HTTP hook that can't start, times out, or exits oddly blocks the action instead of waving it through. v2.1.296 adds a per-subagent <code>autoCompactWindow</code> and <code>CLAUDE_CODE_WORKFLOW_SUBAGENT_MODEL</code> to pin every workflow agent to one model. <a href="https://github.com/anthropics/claude-code/releases/tag/v2.1.294">v2.1.294</a> · <a href="https://github.com/anthropics/claude-code/releases/tag/v2.1.295">v2.1.295</a> · <a href="https://github.com/anthropics/claude-code/releases/tag/v2.1.296">v2.1.296</a></p>
+<p class="why">Why it matters to you: if you use hooks as guardrails, upgrade and set <code>onFailure: "block"</code> on anything security-relevant. A guardrail that fails open isn't a guardrail. Then actually test that a blocked command stays blocked.</p>
+
+<h3>3. GitHub Copilot's local sandbox is now generally available</h3>
+<p>Command sandboxing is GA in Copilot CLI (<code>/sandbox</code> or <code>--sandbox</code>), the Copilot app, and VS Code sessions using Agent Host. It controls file, network, credential, and execution access for commands Copilot starts, and admins can enforce policy that developers can't loosen. <a href="https://github.blog/changelog/2026-10-07-local-sandboxing-for-github-copilot-now-generally-available/">GitHub Changelog</a> · <a href="https://github.blog/changelog/2026-10-09-github-copilot-weekly-releases-october-5/">Weekly releases</a></p>
+<p class="why">Why it matters to you: "can the agent touch prod credentials?" now has a vendor-supported answer for Copilot shops. That's a concrete deliverable in an agent-rollout engagement: an org sandbox policy.</p>
+
+<h3>4. Mistral Large 4 ("le Chonk") is in public preview, weights due end of month</h3>
+<p>It's a 1.05T-parameter mixture-of-experts model with 52B active, 1M context, image input, tool calling and structured outputs. Preview pricing in Mistral's docs is currently $0.68 per million input tokens and $2.09 per million output, shown as a sale price. Mistral says weights land by the end of October (the Hugging Face page counts down to Oct 31), after red-teaming with security partners. <a href="https://mistral.ai/news/mistral-large-4/">Mistral</a> · <a href="https://docs.mistral.ai/models/mistral-large">Docs and pricing</a> · <a href="https://huggingface.co/mistralai/Mistral-Large-4.0-1T05-A52B">Hugging Face</a></p>
+<p class="why">Why it matters to you: for EU-sovereignty or self-host deals, a frontier-ish open model with a 1M window changes the pitch. Benchmark it against your current model on one real client task now, so you're ready when the weights drop.</p>
+
+<h3>5. EmbeddingGemma 2: one small open model for text, code, images, video and audio</h3>
+<p>Google's 740M-parameter, Apache-2.0 embedding model maps every modality into one 768-dimensional space, supports Matryoshka truncation down to 128 dimensions, takes 8K tokens of text or code, and scores 14% higher than v1 on code retrieval. Text-only weights run in about 191MB of RAM on a phone, per Google. <a href="https://blog.google/innovation-and-ai/technology/developers-tools/embeddinggemma-2/">Google</a> · <a href="https://developers.googleblog.com/en/embeddinggemma-2-the-developer-guide/">Developer guide</a> · <a href="https://ai.google.dev/gemma/docs/embeddinggemma/model_card_2">Model card</a></p>
+<p class="why">Why it matters to you: "search all our call recordings, screenshots and docs, on our own hardware" is now a small, cheap build. That's a very sellable mid-market project.</p>
+
+<h3>6. Pensieve: local search so your agent stops grepping the whole repo</h3>
+<p>A free, open-source Mac app that indexes your files, repos and past agent sessions, then hands Claude Code, Codex, Cursor and other MCP clients the few relevant passages so they make fewer tool calls. The HN crowd points out there are many tools like it, and that the "ask your agent to curl the installer" setup deserves a raised eyebrow. <a href="https://tedhaley.ca/pensieve/">Pensieve</a> · <a href="https://news.ycombinator.com/item?id=50049508">HN thread</a></p>
+<p class="why">Why it matters to you: the token cost of grep-heavy search grows with the codebase. Whether or not you use this one, measuring tool calls per task before and after adding a code index is an easy efficiency win.</p>
+
+<h3>7. QGIS formally bans AI-assisted contributions</h3>
+<p>The QGIS project merged a revision of its AI policy (QEP 408 v2) on Oct 7. It replaces the old "human in the loop" rule with a strict not-allowed policy. HN is arguing over the obvious question: what even counts as "AI-assisted"? <a href="https://github.com/qgis/QGIS-Enhancement-Proposals/pull/387">The proposal</a> · <a href="https://news.ycombinator.com/item?id=50054751">HN thread</a></p>
+<p class="why">Why it matters to you: if your agents send upstream fixes, read each project's contribution policy first. Getting a client's engineer banned from a dependency they rely on is a bad look.</p>
+
+<h3>8. Karpathy: the shared understanding of what LLMs can do is drifting apart</h3>
+<p>Andrej Karpathy's post on the widening gap in how people understand LLM capability was one of the top HN stories this weekend. The thread lands on a familiar point: the bottleneck is increasingly humans' ability to verify the output, not generating it. <a href="https://twitter.com/karpathy/status/2109361546505966046">Karpathy on X</a> · <a href="https://news.ycombinator.com/item?id=50047422">HN thread</a></p>
+<p class="why">Why it matters to you: that gap is your sales cycle. Clients who've only used free chat underestimate what agents can do, and they also underestimate the review and verification you'll need to build in. Price the verification in.</p>
+
+<h3>9. Anthropic's IPO draws its first loud bear</h3>
+<p>Research firm New Constructs called Anthropic's planned Nasdaq listing "the most ridiculous IPO of 2026," citing growing operating losses. The company is reportedly seeking a $2 trillion valuation. <a href="https://www.cnbc.com/2026/10/07/anthropic-will-be-most-ridiculous-ipo-of-year-analyst-says.html">CNBC</a></p>
+<p class="why">Why it matters to you: public-market pressure tends to show up as pricing and plan changes. Keep client builds model-portable, with an abstraction layer and evals you can rerun on another provider.</p>
+
+<p class="meta">Sources: <a href="https://news.ycombinator.com/front?day=2026-10-11">HN front page, Oct 11</a>, vendor changelogs and release notes linked above.</p>
