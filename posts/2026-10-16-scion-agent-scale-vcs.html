@@ -1,0 +1,35 @@
+<!--
+title: Deep dive: When agents merge 30k times a day, git is the bottleneck
+date: 2026-10-16
+order: 2
+summary: Anthropic replaced git with Scion after monorepo merges jumped from ~2,500/day to 30,000+. The lessons are about agent-scale infra, not "you should ditch git."
+-->
+<p>Anthropic's engineering post from this week is one of the clearest signals yet that coding agents change the bottleneck. In May they averaged about 2,500 merges a day to the monorepo. By September it was over 30,000. Claude was writing the code; source control, CI, and review tooling were choking. They spent five months building <strong>Scion</strong>, an in-house VCS, plus Antique (code review), search, and IAM, and fully migrated off git. Updated Oct 15 with more prior-art notes on Meta's Mononoke/Sapling techniques.</p>
+
+<h2>What broke</h2>
+<p>Main-branch history alone was nearly 100 GB; a compressed working copy over 25 GB. CI alone did on the order of 25 million checkouts a day. Naive fetch math: hundreds of petabytes of git traffic. They tried the standard monorepo toolkit — shallow clones, sparse checkouts, promisor remotes, internal mirrors (hundreds of them), seed snapshots in blob storage — and it stopped scaling as merge rate climbed. Seeds went stale; history-dependent ops got brittle.</p>
+<p>The punchline they land on: they were already running git as a <em>centralized</em> system with always-online agents and jobs, while paying for a design meant for offline, complete clones. So they flipped the assumptions.</p>
+
+<h2>Scion's design bets (steal the ideas, not the binary)</h2>
+<ul>
+<li><strong>Clients are always online.</strong> Fetch what you need; don't pretend every agent needs a full repo offline.</li>
+<li><strong>Server does the heavy work.</strong> Commits, merges, rebases, blame, history live on the server. The client caches objects, lays out a working copy, and talks ergonomically to the API.</li>
+<li><strong>Source control as a query API.</strong> CI jobs that only need a diff or merge-base can ask the server — no checkout required.</li>
+<li><strong>Horizontal everything.</strong> No fully materialized copy anywhere; content-addressed data; caches answering immutable object fetches. They report ~200× less CPU/memory than the git-mirror fleet, and checkouts in seconds instead of minutes (CI got a ~25% CPU capacity win).</li>
+<li><strong>Sparse and virtualized by default.</strong> Pay for files you touch. Skip working copies when an API answer is enough.</li>
+</ul>
+<p>Anthropic is blunt: Scion is <em>not</em> a git replacement for normal teams. It only makes sense for enormous monorepos with huge agent traffic, and it pulls code review, search, and CI along with it. They're not shipping it as a product. They want forges to steal the server-side RPC and cache ideas inside git.</p>
+
+<h2>The human job changed</h2>
+<p>Seven engineers built Scion and Antique in five months while merge volume rose 10×. Their own framing: Claude is better at writing the code than they are; humans supply system design, constraints, and the word "no." Agents will violate core invariants to satisfy a pattern that should never have been allowed. Review shifts toward intent and architecture, not line-by-line reading. They also run "superfan" Claudes — Slack-channel agents obsessed with one component's health charts — as a complement to traditional alerts.</p>
+<p>Merge queues as we know them fray when thousands of changes land while tests run. Anthropic invested in post-merge and pre-deploy automated testing and let Claude fix conflicts faster than humans diagnose them. That is a culture change, not a feature flag.</p>
+
+<h2>Why it matters to you</h2>
+<p>You probably don't need Scion. You <em>do</em> need a checklist for the next client whose agent fleet starts melting CI:</p>
+<ul>
+<li>Measure merges/day, checkout time, and mirror/seed lag before rewriting anything.</li>
+<li>Prefer server-side diffs, sparse checkouts, and artifact caches over "every job clones main."</li>
+<li>Separate "code volume" problems (VCS, CI capacity) from "review quality" problems (intent review, path-based permissions, semantic approval rules).</li>
+<li>Sell an <em>Agent-Scale DevEx audit</em>: where will 5–10× agent output hit first — git, CI minutes, review SLA, or artifact storage — and what cheap git-compatible mitigations buy 6–12 months.</li>
+</ul>
+<p>Read the primary source: <a href="https://www.anthropic.com/engineering/redesigning-source-control">Redesigning source control at Anthropic</a>. The consulting angle writes itself: agents don't just write faster — they force you to redesign the plumbing humans never stressed.</p>
