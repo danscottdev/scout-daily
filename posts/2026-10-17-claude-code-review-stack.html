@@ -1,0 +1,30 @@
+<!--
+title: Deep dive: Steal the Claude Code team's review stack
+date: 2026-10-17
+order: 2
+summary: How Anthropic's Claude Code team doubled merged PRs while cutting reverts by 40%: verification before the PR exists, multi-agent review with voting, blocking security review, and human approval scaled by risk. Plus how to roll it out for a client.
+-->
+<p>Anthropic's monorepo went from about 2,500 changes landing per day in May to more than 30,000 in September. Nobody reads that line by line. The Claude Code team's answer, laid out in a <a href="https://claude.dev/blog/solving-code-review-at-anthropic/">14-minute engineering post</a> by Addy Osmani, Morgan Westlee Lunt, and Qing Wang, isn't "skip review." They moved most of the reading to machines, aimed human attention at risk, and made rollback cheap. Their reported result: merged PRs more than doubled from June to September while the share that had to be reverted fell by more than 40%.</p>
+
+<h3>The reframe: optimize for human attention, guarded by reverts</h3>
+<p>Their goal is that most PRs merge with at most one human in the loop, and that human can be the author, with no rise in reverts or incidents. They measure human approvals per PR (median and 95th percentile), human comments, and how long PRs wait on a person. Revert and incident rates are the guardrail: if those go up, you didn't save time, you just moved it to cleanup. That's the part most teams skip. Write down that metric pair before you change anything.</p>
+
+<h3>The layers</h3>
+<p><strong>1. Verify before a PR exists.</strong> Give the agent something it can run (tests, a build, a screenshot to compare against the design) and make it show the output instead of claiming it's done. Then have a subagent review the diff with fresh context. Many engineers also run internal skills before opening a PR: one hunts bugs, one simplifies the diff, one checks behavior end to end. Boris Cherny estimates verification alone makes results two to three times better.</p>
+<p><strong>2. Fix repeat findings at the source.</strong> When the reviewer keeps flagging the same thing, fix it in a skill, a lint rule, or the instruction files. <code>CLAUDE.md</code> stays short and points to other docs. <code>REVIEW.md</code>, written by code owners, says what failure looks like in that area ("it lies" for docs, "it misroutes" for config), caps nits, lists paths to skip, asks for file-and-line evidence, and asks for a summary that opens with a count and says plainly when nothing needs fixing.</p>
+<p><strong>3. AI review on every PR, with voting.</strong> Several agents hunt bugs in parallel, then a separate group votes on each finding, and it only posts if enough agree. Style-only and cleanup findings get dropped; they A/B tested those filters on their own PRs. Findings are tagged Important, Nit, or Pre-existing, so an old bug doesn't look like the author's fault. Every finding must be answered, either fixed or resolved with a reason. In the preview, the share of internal PRs getting substantive comments went from 16% to 54%.</p>
+<p><strong>4. Security review that blocks.</strong> A PR can't merge while any bug or security finding is still open. Closing a thread with a short reason is how you clear a false positive, and a later commit that fixes the issue clears it automatically. The open-source security review GitHub Action and <code>/security-review</code> give you the same setup outside Anthropic.</p>
+<p><strong>5. Normal CI, plus a rollback question.</strong> Lint, types, tests on every platform, and a build. The PR template asks how the change was tested and how to undo it. Claude can draft the answer, but the person who asked for the change signs off.</p>
+<p><strong>6. Human approval scaled by risk.</strong> Docs, copy, internal-only features, and additive changes behind a flag need no human approval once automated review and security checks pass. Riskier areas, like an auto-updater, get more human scrutiny. Repo owners decide which low-risk changes can merge on automated checks alone, and they say that line keeps moving.</p>
+
+<h3>How I'd roll this out for a client</h3>
+<ol>
+<li><strong>Baseline first.</strong> Pull 60-90 days of PR wait time, approvals per PR, and revert rate from the GitHub API. Without that, you can't prove the change worked.</li>
+<li><strong>Verification habits in week one.</strong> Add a "show me the test output" rule plus a fresh-context subagent review to the team's agent config. This is cheap and needs no new vendor.</li>
+<li><strong>Write <code>REVIEW.md</code> per area with the code owners.</strong> Keep each one short and specific about what failure looks like. This is where your consulting judgment earns its fee.</li>
+<li><strong>Turn on automated PR review</strong> (Claude Code Review, or GitHub's AI Scan for infra-heavy repos) in Standard mode. Use Deep only where one missed bug costs more than the wait. Make findings blocking-until-answered, not blocking-forever.</li>
+<li><strong>Write a risk table</strong> mapping paths to the human approvals they need. Start conservative and loosen it only while the revert rate holds.</li>
+<li><strong>Review the metrics monthly.</strong> If reverts rise, tighten the risk table before you blame the tool.</li>
+</ol>
+<p>Caveats: Code Review needs a Team or Enterprise plan, GitHub hosting, and isn't available with Zero Data Retention, the HIPAA configuration, or customer-managed encryption keys (<a href="https://code.claude.com/docs/en/code-review">docs</a>). Regulated clients may need the local <code>/code-review</code> command or the open-source security Action instead. The numbers are Anthropic's own and from a team that builds the tool, so treat them as an upper bound and measure yours.</p>
+<p class="meta">Sources: <a href="https://claude.dev/blog/solving-code-review-at-anthropic/">claude.dev</a> · <a href="https://claude.com/resources/articles/code-review-is-now-generally-available">Claude GA post</a> · <a href="https://code.claude.com/docs/en/code-review">Claude Code docs</a></p>
