@@ -1,0 +1,49 @@
+<!--
+title: Quick Hits — Sun Oct 18, 2026
+date: 2026-10-18
+order: 1
+summary: Imprint ships a CI-gated small-change auto-approve path while review wait climbs, Replit flips its Agent default to OpenAI, Claude Code tightens unattended retries and OTEL, Next.js patches two critical RCEs, and Accenture caps Claude spend at $29/employee.
+-->
+<p>Today's theme: review gates and agent ops get practical, and model defaults and budgets shift. Ten Sunday items, plus a deep dive on Imprint's <code>small-change</code> gate — the natural follow-on to yesterday's Anthropic review stack.</p>
+
+<h3>1. Imprint's <code>small-change</code>: CI decides who skips the human queue</h3>
+<p>Will Larson published how Imprint is coping with merge volume that is crushing review. Average engineer merges are up 4x vs two years ago; some teams are at 10x; one engineer is at 25x. Incidents are down 42% half-over-half and critical incidents down 78%. The cost: p50 review time rose from about 33 minutes to 77. Their answer is <code>small-change</code>: a non-human-editable CI check that marks eligible PRs, plus a skill that may only approve or ignore — never comment. Eligibility: under 1,000 LOC; no p1/p2 from <code>ai-code-review</code>; author has 10+ prior merges in each affected service; impacts fewer than N services (N=1 frontend, N=3 backend); shared libs ineligible; path exclusions via <code>.small_change</code> (money movement, etc.). Early: about 10% of changes qualify. Failures from small-changes are treated as system failures, not human ones. <a href="https://lethain.com/small-changes/">lethain.com</a></p>
+<p class="why">Why it matters to you: this is the missing half of yesterday's Anthropic playbook — risk-tiered auto-merge with hard eligibility, not "AI left comments and a human rubber-stamped." Steal it for clients. See today's deep dive.</p>
+
+<h3>2. Replit makes OpenAI the default over Anthropic</h3>
+<p>At TechCrunch Disrupt, Replit CEO Amjad Masad said OpenAI is now preferred for Replit Agent on performance, cost, and partnership. Users can still pick Claude. Replit had been a top-5 Anthropic customer. Enterprise is about 15% of revenue (was 2%), and more than half of revenue is B2B. <a href="https://techcrunch.com/2026/10/17/replit-is-no-longer-working-with-anthropic-ceo-says/">TechCrunch</a></p>
+<p class="why">Why it matters to you: agent platforms will keep flipping defaults on cost and partnership, not just quality. Multi-model routing and a "switch provider without rewriting the product" story are now table stakes in any consulting pitch.</p>
+
+<h3>3. Claude Code 2.1.301: safer unattended retries + richer OTEL</h3>
+<p>Unattended retry mode can now bail when a usage-limit reset is too far away: set <code>CLAUDE_CODE_RETRY_WATCHDOG_MAX_USAGE_LIMIT_WAIT_MS</code> instead of waiting forever. OpenTelemetry <code>tool_decision</code> events gain <code>classifier_verdict</code>, <code>permission_mode</code>, and (with <code>OTEL_LOG_TOOL_DETAILS=1</code>) <code>classifier_category</code>. Fixes worth noting: Grep/Glob no longer report empty results when the search failed; unsafe worktree deletion on quit; workflow agents that skipped steps but still reported success. <a href="https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md">Changelog (2.1.301)</a> · <a href="https://code.claude.com/docs/en/errors">errors docs</a></p>
+<p class="why">Why it matters to you: overnight agent fleets that hang on usage limits burn money and trust. Wire the watchdog and OTEL attributes into your client's observability before you sell unattended runs.</p>
+
+<h3>4. Next.js: two critical RCEs — patch to 15.5.28 or 16.4.1</h3>
+<p>Sunday catch-up on the Oct 14 security update. Critical: unauthenticated RCE when <code>use cache</code> returns typed arrays (GHSA-673q-mjm6-r5xr). Critical: Image Optimization SVG RCE on glibc Linux (CVE-2026-96889 / GHSA-2464-fhr4-w9xw); sharp ≥0.35.5 is a workaround. High: Server Actions DoS. Upgrade to 15.5.28 or 16.4.1. <a href="https://nextjs.org/blog/nextjs-security-update-october-14-2026">Next.js blog</a></p>
+<p class="why">Why it matters to you: any client on App Router with caching or image optimization needs this in the Monday morning checklist. Unauthenticated RCE is the kind of thing that turns a quiet weekend into an incident retainer.</p>
+
+<h3>5. REA: MCP reverse-engineering toolkit for coding agents</h3>
+<p>morluto/rea is an MIT-licensed MCP toolkit that lets coding agents do local analysis of binaries, JS, Electron, .NET, and websites via tools like Ghidra, Hopper, and IDA, with evidence-backed findings. Setup is <code>npx rea-agents setup</code>. The framing is owned software, interoperability, and study — not theft. Indie studios are already nervous about AI cloning demos. It has surged in popularity on GitHub. <a href="https://github.com/morluto/rea">GitHub</a> · <a href="https://morluto.github.io/rea/">docs</a> · <a href="https://rea.tools">rea.tools</a></p>
+<p class="why">Why it matters to you: interoperability and legacy-binary archaeology are real consulting work. So is advising clients on policy: what agents may reverse-engineer on owned code vs what creates legal exposure.</p>
+
+<h3>6. Accenture caps central Claude funding at $29/employee/month</h3>
+<p>Effective around Oct 1 (reported Oct 15), Accenture limited centrally funded Claude spend to $29 per employee per month. Some employees had been spending up to about $1,000/month. Excess now hits project WBS budgets. A firm that sells AI to clients is tightening its own internal bill. <a href="https://www.404media.co/accenture-tells-employees-they-can-now-spend-only-29-on-claude-per-month/">404 Media</a></p>
+<p class="why">Why it matters to you: expect the same conversation at every mid-size client. Sell usage budgets, per-project WBS routing, and "what $29/mo of Claude actually buys" as part of the rollout, not as a surprise finance memo later.</p>
+
+<h3>7. OpenAI Codex Day 12.2: more effective usage via cache and routing</h3>
+<p>In the ongoing Reset / 28-days QoL thread, Day 12.2 calls out better effective usage: context reuse across subagents, a longer cache, and improved routing so more calls hit the cache. <a href="https://community.openai.com/t/reset-day-13-of-28-days-of-quality-of-life-improvements-and-or-a-full-reset/1403525">OpenAI Community (Day 12.2)</a></p>
+<p class="why">Why it matters to you: when clients complain that agent runs feel expensive, cache hit rate and subagent context reuse are the first dials to check — before you swap models.</p>
+
+<h3>8. PostgreSQL 19 RC 1 is out</h3>
+<p>PostgreSQL 19 Release Candidate 1 shipped Oct 15. RC2 is planned for Nov 12; GA is planned for Nov 19, 2026. AWS also put RC1 into the RDS Database Preview Environment. <a href="https://www.postgresql.org/about/news/postgresql-19-rc-1-released-3409/">PostgreSQL</a> · <a href="https://aws.amazon.com/about-aws/whats-new/2026/10/postgresql-19-rc1-amazon-rds-database-preview-environment/">AWS RDS Preview</a></p>
+<p class="why">Why it matters to you: if a client wants early access to 19 features on managed infra, RDS Preview is the low-friction path. Put upgrade risk review on the calendar before GA, not after.</p>
+
+<h3>9. Sphinx: quiz yourself on AI-generated code before you push</h3>
+<p>Sphinx is a git-hook / CI idea that generates a quiz from your actual diff before you push to protected branches — so you ship code you claim to understand. Show HN landed around 146 points. <a href="https://sphinx-six-theta.vercel.app/">sphinx app</a> · <a href="https://news.ycombinator.com/item?id=50137950">HN</a> · <a href="https://github.com/AGuyNextDoor/sphinx-ci">sphinx-ci</a></p>
+<p class="why">Why it matters to you: pairs cleanly with Imprint's small-change and Anthropic's risk tiers. For juniors and contractors, "prove you read the AI diff" is a cheaper control than mandatory human review on every PR.</p>
+
+<h3>10. Claude Code 2.1.302: fork subagents on by default in more surfaces</h3>
+<p>Quick follow-on to 2.1.301: fork subagents (<code>subagent_type: "fork"</code>) are now on by default in <code>claude -p</code>, the Agent SDK, desktop, and VS Code (matching the terminal). Set <code>CLAUDE_CODE_FORK_SUBAGENT=0</code> to turn them off. Idle compaction also gets an on/off row in <code>/config</code>. <a href="https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md">Changelog (2.1.302)</a></p>
+<p class="why">Why it matters to you: if a client's SDK or desktop agents suddenly behave differently after an upgrade, check fork defaults and compaction before debugging the prompt.</p>
+
+<p class="meta">Sources: <a href="https://lethain.com/small-changes/">Will Larson / lethain.com</a>, <a href="https://techcrunch.com/2026/10/17/replit-is-no-longer-working-with-anthropic-ceo-says/">TechCrunch</a>, <a href="https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md">Claude Code changelog</a>, <a href="https://nextjs.org/blog/nextjs-security-update-october-14-2026">Next.js</a>, <a href="https://github.com/morluto/rea">REA</a>, <a href="https://www.404media.co/accenture-tells-employees-they-can-now-spend-only-29-on-claude-per-month/">404 Media</a>, <a href="https://community.openai.com/t/reset-day-13-of-28-days-of-quality-of-life-improvements-and-or-a-full-reset/1403525">OpenAI Community</a>, <a href="https://www.postgresql.org/about/news/postgresql-19-rc-1-released-3409/">PostgreSQL</a>, <a href="https://news.ycombinator.com/item?id=50137950">HN / Sphinx</a>.</p>

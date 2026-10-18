@@ -1,0 +1,59 @@
+<!--
+title: Deep dive: Imprint's small-change gate (steal this for clients)
+date: 2026-10-18
+order: 2
+summary: Will Larson published how Imprint lets CI + an AI skill auto-approve low-risk PRs—while humans keep the risky ones. Companion to yesterday's Claude Code review stack. How to sell and roll it out.
+-->
+<p>Yesterday's Scout deep dive covered how the Claude Code team doubled merged PRs while cutting reverts: verification before the PR, multi-agent review with voting, blocking security review, and human approval scaled by risk (<a href="https://claude.dev/blog/solving-code-review-at-anthropic/">Anthropic's post</a>). Today Will Larson published the other half of that design — what happens when the low-risk bucket actually auto-merges. Imprint's <a href="https://lethain.com/small-changes/"><code>small-change</code></a> is a CI-gated eligibility check plus an AI skill that may only approve or ignore. No comments. No meat-proxy theater. Early on, about 10% of changes qualify.</p>
+
+<h3>The problem: more merges, better quality, slower reviews</h3>
+<p>Imprint's average engineer merges 4x more PRs than two years ago. Two teams are at 10x. One engineer is at 25x the weekly merges of the average engineer from two years back. Quality moved with volume: incidents down 42% half-over-half, critical incidents down 78%. The bottleneck is review wait. p50 review time went from about 33 minutes to about 77 minutes, and the slope tracks merge volume tightly enough that Larson made it a priority for the week.</p>
+<p>They still believe in the four classic reasons for review — knowledge sharing, preventing errors, catching malice, and compliance — but argue each has a better modern mechanism (clustered review, CICD plus harness verification, path rules plus abuse detection, and controls that can be rewritten). The point of <code>small-change</code> is not "skip review forever." It is to validate a narrow, contained practice while those replacements get stronger.</p>
+
+<h3>Eligibility is a CI check, not a label you can slap on</h3>
+<p>When a PR is marked ready, CICD decides whether it is a <code>small-change</code>. That shows up as a passing GitHub check. There is also a label for visibility, but humans cannot make something eligible by editing the label — the check is independently verified by the build. All of these must hold:</p>
+<ul>
+<li>Under 1,000 lines of code</li>
+<li>No p1 or p2 findings from their <code>ai-code-review</code> bot</li>
+<li>Author has "experience": 10+ prior merges into each affected service or application's directories</li>
+<li>Impacts fewer than N distinct services (N=1 on the frontend monorepo; N=3 on the backend, where a typical change touches a gRPC service and a shared HTTP gateway)</li>
+<li>Shared libraries and utilities are ineligible</li>
+<li>Per-repo <code>.small_change</code> path exclusions for sensitive areas (money movement is the example)</li>
+</ul>
+<p>Slack automation tags PR references with reacji for state (failing tests, approved-but-waiting, ready to merge) and now a <code>small-change</code> reacji so the channel can see which PRs are in the fast lane.</p>
+
+<h3>The skill: approve or ignore — never comment</h3>
+<p>Two internal skills ship across harnesses:</p>
+<p><strong><code>review-small-change</code></strong> takes a list of repos and walks open, non-draft small-changes. It may approve if checks pass (including the <code>small-change</code> check) and the diff does not touch sensitive topics like payments or security. Critically, it has only two outcomes: approve or ignore. It never leaves comments.</p>
+<p><strong><code>review-pr-cluster</code></strong> reviews batches of PRs for common themes and suggests discussion or new verifications — knowledge sharing at cluster scale, which is Larson's answer to "we used to learn one PR at a time."</p>
+<p>The no-comments rule is the design's sharp edge. Larson calls the failure mode <strong>meat proxy review</strong>: the team is drowning in reviews, so people run a local harness that dumps comments; authors cannot tell which comments the human actually stands behind; teams then use harnesses to reply to harness comments; the whole thing looks like review and teaches nothing. In every case he has seen, the better move is to invest in centralized review, teach the harness to address that feedback, and stamp approval. <code>review-small-change</code> is built to refuse that trap.</p>
+
+<h3>Own the failures at the system level</h3>
+<p>Social contract: any error caused by a <code>small-change</code> is a failure of the system — <code>ai-code-review</code>, verification, CICD, or the harness — not a reason to yell at the author or abandon the gate. That is how you expand the 10% without pretending humans will catch what the machine missed on the other 90%. Implementation took about two days of intermittent attention; Larson expects to tune the knobs for a long time, maybe forever.</p>
+<p>They also run a centrally orchestrated harness, <code>fleet</code> (in the spirit of Stripe's Minions), that can write and verify changes in a controlled cloud environment and pick how many independent reviewers a change needs — sometimes as low as one human reviewing what fleet wrote. That is the high-control path; <code>small-change</code> is the high-volume, low-ceremony path.</p>
+
+<h3>How this pairs with yesterday's Anthropic layers</h3>
+<p>Map the two posts onto one client stack:</p>
+<ol>
+<li><strong>Verify before the PR</strong> (Anthropic) — tests, builds, fresh-context subagent review</li>
+<li><strong>Automated PR review with severity</strong> (Anthropic Code Review / client's bot) — findings that must be answered</li>
+<li><strong>Blocking security review</strong> (Anthropic) — open security threads block merge</li>
+<li><strong>Risk table + eligibility gate</strong> (Imprint <code>small-change</code>) — CI decides which PRs may skip a human; skill may only approve or ignore</li>
+<li><strong>Human attention on the rest</strong> — cluster review, path-based required reviewers, compliance repos that still need an independent human</li>
+</ol>
+<p>Anthropic's post says repo owners decide which low-risk changes can merge on automated checks alone, and that the line keeps moving. Imprint is a concrete, published version of that line: LOC cap, experience threshold, service fan-out, shared-lib ban, path exclusions, and a skill that cannot invent a review theater.</p>
+
+<h3>Client rollout checklist for the agency</h3>
+<ol>
+<li><strong>Baseline.</strong> Pull 60–90 days of p50/p95 review wait, merges per engineer, revert rate, and incident rate. Without that, you cannot prove the gate helped.</li>
+<li><strong>Write the risk table with code owners.</strong> Paths that move money, auth, crypto, PII, infra, and shared libraries stay out of small-change. Everything else starts conservative.</li>
+<li><strong>Automate eligibility as a required check.</strong> Labels are for humans; the check is the source of truth. Do not let authors self-declare.</li>
+<li><strong>Ship <code>ai-code-review</code> (or Claude Code Review / equivalent) first.</strong> p1/p2 findings must block small-change eligibility. If the bot is weak, the gate is unsafe.</li>
+<li><strong>Build the approve-or-ignore skill.</strong> Ban comments in the skill itself. If the team wants feedback, route it through the centralized reviewer, not a local harness dump.</li>
+<li><strong>Experience gate.</strong> Start at 10+ merges in each touched service. Lower it only after false-reject volume is measured.</li>
+<li><strong>Declare the social contract in writing.</strong> Small-change incidents are system bugs. Track them as such and feed them into verification and the bot.</li>
+<li><strong>Expand from ~10% only while reverts and incidents hold.</strong> Widen N, raise the LOC cap, or shrink exclusions one knob at a time. Review metrics monthly.</li>
+<li><strong>Compliance carve-out.</strong> Repos whose controls still require an independent human stay out until legal rewrites the control. Do not paper over SOX/PCI language with a skill.</li>
+</ol>
+<p>Caveats: Larson's numbers are early ("too early to give a useful result") and from one company. Treat 10% as a starting share, not a target. Meat-proxy review will reappear the moment someone "improves" the skill by letting it comment — design that out. And uncomfortable culture pushback is expected; Larson notes that reevaluating long-held review dogma is both the energizing and the painful part of the cycle.</p>
+<p class="meta">Sources: <a href="https://lethain.com/small-changes/">Will Larson — Speeding up code review with small-change</a> · <a href="https://claude.dev/blog/solving-code-review-at-anthropic/">Anthropic — Solving code review at Anthropic</a> · yesterday's Scout deep dive on the Claude Code review stack</p>
