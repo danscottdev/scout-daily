@@ -1,0 +1,43 @@
+<!--
+title: Deep dive: own the LLM traffic layer (and sell it as a first engagement)
+date: 2026-10-19
+order: 2
+summary: A self-run LLM proxy, per-key budgets, and cache-miss forensics keep coming up: DeepSeek's Oct 31 billing switch, Vercel's gateway budgets, Accenture's $29 cap. Here's what to log, how to roll it out, and why it's a clean first consulting engagement.
+-->
+<p>Three things in the last week point at the same gap. Accenture capped centrally funded Claude spend at $29 per employee per month after some people hit about $1,000 (<a href="https://www.404media.co/accenture-tells-employees-they-can-now-spend-only-29-on-claude-per-month/">404 Media</a>). Vercel shipped budgets per API key, project, person, and team in its AI Gateway (<a href="https://vercel.com/blog/vercel-ship-2026-recap">Ship recap</a>). And DeepSeek just announced that search and fetch calls made by Claude Code and Codex sessions running on its models, free today, start billing at noon ET on Oct 31 (<a href="https://api-docs.deepseek.com/quick_start/pricing/">pricing</a>). Meanwhile Jared Siegel's <a href="https://jrdsgl.com/if-you-dont-run-your-own-llm-proxy-how-the-fuck-do-you-even-know-whats-going-on/">proxy rant</a> hit the HN front page with one question: if all your LLM traffic goes straight from tools to vendors, how do you know what's going on?</p>
+<p>Mostly, you don't. Without that layer you can see the monthly bill, but not which agent, key, or workflow drove it, or why one day's runs cost far more than the day before.</p>
+
+<h3>What the layer actually is</h3>
+<p>It's one HTTP endpoint you control, sitting between every client (IDE agents, CLI agents, internal apps, CI jobs) and every provider. Clients use a <em>virtual</em> key issued by the proxy; the real provider keys live only in the proxy. That one move gets you most of Siegel's list: one endpoint across providers and models, a log of who called what and with what result, no main key copied into every harness, and the ability to swap providers without touching each client.</p>
+<p>Siegel deliberately doesn't recommend a product, and neither will I. Self-hosted open-source proxies and managed gateways like Vercel's both exist. The choice is mostly about where logs may live (client data policy) and whether you need to change the code. What matters is the data you collect.</p>
+
+<h3>The minimum log schema</h3>
+<p>Per request, record:</p>
+<ul>
+<li><strong>Who:</strong> virtual key, person or service, client/harness name and version (from the User-Agent or a header you require).</li>
+<li><strong>What:</strong> provider, model, effort or reasoning setting, streaming or not.</li>
+<li><strong>Cost drivers:</strong> input, output, and cached-input tokens, plus a computed dollar cost from a price table you version.</li>
+<li><strong>Outcome:</strong> HTTP status, latency, time to first token, retries, and the error class.</li>
+<li><strong>Tool calls:</strong> any server-side tool usage (search, fetch, code execution) as separate billable line items. The DeepSeek change is exactly the kind of cost that hides here.</li>
+<li><strong>Correlation:</strong> a session or run ID passed through from the agent, so you can rebuild one agent run end to end.</li>
+</ul>
+<p>Whether to store prompt and response bodies is a policy decision, not a default. Hash them for dedup and cache analysis, and keep full bodies only where the client's data-handling rules allow.</p>
+
+<h3>Cache-miss forensics is the killer feature</h3>
+<p>Siegel's best line is that he can tell why a coding session missed the cache in 20 seconds. That matters because cache hit rate is one of the biggest cost levers in agent work, and it breaks silently. Last week's Claude Code changelog alone fixed a prompt cache miss when a tool added mid-session was reloaded through ToolSearch or after compaction (<a href="https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md">2.1.302</a>), and OpenAI's Codex team has been tuning cache reuse across subagents (covered in yesterday's edition). If you log cached versus uncached input tokens per request and per session, a hit-rate drop after a tool upgrade shows up as a chart, not as a surprise invoice.</p>
+
+<h3>Budgets: enforce at the layer, not in a memo</h3>
+<p>Accenture's cap shows how this goes without the layer: a policy email, then overages pushed onto project budgets. With a proxy, budgets are config. Set soft limits that alert, hard limits that reject or downgrade to a cheaper model, and per-project keys so spend lands on the right budget automatically. Add per-run ceilings for unattended agents, the same instinct as the Claude Code usage-limit retry watchdog from yesterday's edition.</p>
+
+<h3>Rollout plan I'd actually use</h3>
+<ol>
+<li><strong>Week 1, observe only.</strong> Stand up the proxy, issue virtual keys to one team, and route their agents through it with no limits. Build three views: spend by person/project/model, cache hit rate by client and harness, and error/retry rate.</li>
+<li><strong>Week 2, close the side doors.</strong> Rotate the real provider keys so the proxy is the only path. Add the price table and alert thresholds.</li>
+<li><strong>Week 3, enforce and route.</strong> Turn on soft budgets, then hard ones. Try a routing rule or two (for example, a cheaper model for summarization or lint-fix subagents) and compare quality and cost against the logs you already have.</li>
+</ol>
+<p>Two cautions. A proxy is now on the critical path for every agent, so run it highly available and fail clearly, not silently, when it's down. And it holds every real provider key, so treat it like a secrets system: network-restricted, audited, and owned by someone.</p>
+
+<h3>Why this is a good first engagement to sell</h3>
+<p>It's small, it's measurable, and it pays for itself in the client's own numbers. The output is a dashboard the CFO understands and an engineering team that can finally answer "which agent is expensive and why." It also sets up the next projects naturally: model routing, eval-driven model swaps (Replit just flipped its default provider on cost and partnership), and governance for the agent fleets they're about to run. Lead with the observe-only week. Once a client sees their own cache-miss chart, the rest of the plan usually sells itself.</p>
+
+<p class="meta">Sources: <a href="https://jrdsgl.com/if-you-dont-run-your-own-llm-proxy-how-the-fuck-do-you-even-know-whats-going-on/">Jared Siegel</a>, <a href="https://api-docs.deepseek.com/quick_start/pricing/">DeepSeek pricing</a>, <a href="https://vercel.com/blog/vercel-ship-2026-recap">Vercel Ship recap</a>, <a href="https://www.404media.co/accenture-tells-employees-they-can-now-spend-only-29-on-claude-per-month/">404 Media</a>, <a href="https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md">Claude Code changelog</a>, <a href="https://techcrunch.com/2026/10/17/replit-is-no-longer-working-with-anthropic-ceo-says/">TechCrunch</a>.</p>
